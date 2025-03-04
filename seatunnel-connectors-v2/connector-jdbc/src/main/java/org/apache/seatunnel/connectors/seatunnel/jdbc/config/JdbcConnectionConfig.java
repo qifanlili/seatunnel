@@ -59,6 +59,8 @@ public class JdbcConnectionConfig implements Serializable {
 
     private Map<String, String> properties;
 
+    private String dateFormat;
+
     public static JdbcConnectionConfig of(ReadonlyConfig config) {
         JdbcConnectionConfig.Builder builder = JdbcConnectionConfig.builder();
         builder.url(config.get(JdbcOptions.URL));
@@ -85,6 +87,7 @@ public class JdbcConnectionConfig implements Serializable {
         config.getOptional(JdbcOptions.PROPERTIES).ifPresent(builder::properties);
         config.getOptional(JdbcOptions.DECIMAL_TYPE_NARROWING)
                 .ifPresent(builder::decimalTypeNarrowing);
+        config.getOptional(MysqlCatalogConfig.DATE_FORMAT).ifPresent(builder::dateFormat);
         return builder.build();
     }
 
@@ -144,6 +147,10 @@ public class JdbcConnectionConfig implements Serializable {
         return properties;
     }
 
+    public String getDateFormat() {
+        return dateFormat;
+    }
+
     public static JdbcConnectionConfig.Builder builder() {
         return new JdbcConnectionConfig.Builder();
     }
@@ -169,6 +176,7 @@ public class JdbcConnectionConfig implements Serializable {
         public String kerberosPrincipal;
         public String kerberosKeytabPath;
         public String krb5Path = JdbcOptions.KRB5_PATH.defaultValue();
+        public String dateFormat = MysqlCatalogConfig.DATE_FORMAT.defaultValue();
 
         private Builder() {}
 
@@ -267,6 +275,11 @@ public class JdbcConnectionConfig implements Serializable {
             return this;
         }
 
+        public Builder dateFormat(String dateFormat) {
+            this.dateFormat = dateFormat;
+            return this;
+        }
+
         public JdbcConnectionConfig build() {
             JdbcConnectionConfig jdbcConnectionConfig = new JdbcConnectionConfig();
             jdbcConnectionConfig.batchSize = this.batchSize;
@@ -288,6 +301,7 @@ public class JdbcConnectionConfig implements Serializable {
             jdbcConnectionConfig.krb5Path = this.krb5Path;
             jdbcConnectionConfig.properties =
                     this.properties == null ? new HashMap<>() : this.properties;
+            jdbcConnectionConfig.dateFormat = this.dateFormat;
             return jdbcConnectionConfig;
         }
     }

@@ -68,6 +68,17 @@ public class MySqlCatalog extends AbstractJdbcCatalog {
         this.typeConverter = new MySqlTypeConverter(version);
     }
 
+    public MySqlCatalog(
+            String catalogName,
+            String username,
+            String pwd,
+            String dateFormat,
+            JdbcUrlUtil.UrlInfo urlInfo) {
+        super(catalogName, username, pwd, urlInfo, null);
+        this.version = resolveVersion();
+        this.typeConverter = new MySqlTypeConverter(version, dateFormat);
+    }
+
     @Override
     protected String getDatabaseWithConditionSql(String databaseName) {
         return String.format(SELECT_DATABASE_EXISTS, databaseName);

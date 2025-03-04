@@ -107,9 +107,15 @@ public class MySqlTypeConverter implements TypeConverter<BasicTypeDefine<MysqlTy
             new MySqlTypeConverter(MySqlVersion.V_5_7);
 
     private final MySqlVersion version;
+    private final String dateFormat;
 
     public MySqlTypeConverter(MySqlVersion version) {
+        this(version, null);
+    }
+
+    public MySqlTypeConverter(MySqlVersion version, String dateFormat) {
         this.version = version;
+        this.dateFormat = dateFormat;
     }
 
     public MySqlTypeConverter() {
@@ -308,8 +314,15 @@ public class MySqlTypeConverter implements TypeConverter<BasicTypeDefine<MysqlTy
                 break;
             case MYSQL_DATETIME:
             case MYSQL_TIMESTAMP:
-                builder.dataType(LocalTimeType.LOCAL_DATE_TIME_TYPE);
-                builder.scale(typeDefine.getScale());
+                if (dateFormat != null) {
+                    // 映射为字符串类型，并通过 comment 传递格式
+                    builder.dataType(BasicType.STRING_TYPE);
+                    builder.comment("date_format:" + dateFormat);
+                } else {
+                    // 默认行为：映射为 LocalDateTime
+                    builder.dataType(LocalTimeType.LOCAL_DATE_TIME_TYPE);
+                    builder.scale(typeDefine.getScale());
+                }
                 break;
             default:
                 throw CommonError.convertToSeaTunnelTypeError(
