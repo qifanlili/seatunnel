@@ -349,6 +349,10 @@ public class ParquetWriteStrategy extends AbstractWriteStrategy {
                 return Types.primitive(
                                 PrimitiveType.PrimitiveTypeName.INT64, Type.Repetition.OPTIONAL)
                         .named(fieldName);
+            case TIME:
+                return Types.primitive(PrimitiveType.PrimitiveTypeName.INT32, Type.Repetition.OPTIONAL)
+                        .as(OriginalType.TIME_MILLIS)
+                        .named(fieldName);
             case TIMESTAMP:
                 if (writePathsAsInt96.contains(fieldName)) {
                     return Types.primitive(
