@@ -405,6 +405,7 @@ public class JdbcCatalogUtils {
         catalogConfig.put(
                 JdbcOptions.DECIMAL_TYPE_NARROWING.key(), config.isDecimalTypeNarrowing());
         catalogConfig.put(MysqlCatalogConfig.DATE_FORMAT.key(), config.getDateFormat());
+        catalogConfig.put(MysqlCatalogConfig.TIME_FORMAT.key(), config.getTimeFormat());
         return ReadonlyConfig.fromMap(catalogConfig);
     }
 }

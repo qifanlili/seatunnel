@@ -34,4 +34,10 @@ public class MysqlCatalogConfig implements Serializable {
                     .stringType()
                     .noDefaultValue()
                     .withDescription("格式化日期字段的模板（如 yyyy-MM-dd HH:mm:ss）");
+
+    public static final Option<String> TIME_FORMAT =
+            Options.key("time_format")
+                    .stringType()
+                    .noDefaultValue()
+                    .withDescription("格式化time字段的模板（如 HH:mm:ss）");
 }

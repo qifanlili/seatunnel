@@ -53,6 +53,7 @@ public class MySqlCatalogFactory implements CatalogFactory {
                 options.get(JdbcCatalogOptions.USERNAME),
                 options.get(JdbcCatalogOptions.PASSWORD),
                 options.get(MysqlCatalogConfig.DATE_FORMAT),
+                options.get(MysqlCatalogConfig.TIME_FORMAT),
                 urlInfo);
     }
 

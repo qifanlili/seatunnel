@@ -108,14 +108,16 @@ public class MySqlTypeConverter implements TypeConverter<BasicTypeDefine<MysqlTy
 
     private final MySqlVersion version;
     private final String dateFormat;
+    private final String timeFormat;
 
     public MySqlTypeConverter(MySqlVersion version) {
-        this(version, null);
+        this(version, null, null);
     }
 
-    public MySqlTypeConverter(MySqlVersion version, String dateFormat) {
+    public MySqlTypeConverter(MySqlVersion version, String dateFormat, String timeFormat) {
         this.version = version;
         this.dateFormat = dateFormat;
+        this.timeFormat = timeFormat;
     }
 
     public MySqlTypeConverter() {
@@ -164,11 +166,12 @@ public class MySqlTypeConverter implements TypeConverter<BasicTypeDefine<MysqlTy
                 }
                 break;
             case MYSQL_TINYINT:
-                if (typeDefine.getColumnType().equalsIgnoreCase("tinyint(1)")) {
-                    builder.dataType(BasicType.BOOLEAN_TYPE);
-                } else {
-                    builder.dataType(BasicType.BYTE_TYPE);
-                }
+//                if (typeDefine.getColumnType().equalsIgnoreCase("tinyint(1)")) {
+//                    builder.dataType(BasicType.BOOLEAN_TYPE);
+//                } else {
+//                    builder.dataType(BasicType.BYTE_TYPE);
+//                }
+                builder.dataType(BasicType.BYTE_TYPE);
                 break;
             case MYSQL_TINYINT_UNSIGNED:
             case MYSQL_SMALLINT:
@@ -306,11 +309,23 @@ public class MySqlTypeConverter implements TypeConverter<BasicTypeDefine<MysqlTy
                 builder.dataType(PrimitiveByteArrayType.INSTANCE);
                 break;
             case MYSQL_DATE:
-                builder.dataType(LocalTimeType.LOCAL_DATE_TYPE);
+                if (dateFormat != null) {
+                    // 映射为字符串类型，并通过 comment 传递格式
+                    builder.dataType(BasicType.STRING_TYPE);
+                    builder.comment("date_format:" + dateFormat);
+                } else {
+                    builder.dataType(LocalTimeType.LOCAL_DATE_TYPE);
+                }
                 break;
             case MYSQL_TIME:
-                builder.dataType(LocalTimeType.LOCAL_TIME_TYPE);
-                builder.scale(typeDefine.getScale());
+                if (timeFormat != null) {
+                    // 映射为字符串类型，并通过 comment 传递格式
+                    builder.dataType(BasicType.STRING_TYPE);
+                    builder.comment("date_format:" + dateFormat);
+                } else {
+                    builder.dataType(LocalTimeType.LOCAL_TIME_TYPE);
+                    builder.scale(typeDefine.getScale());
+                }
                 break;
             case MYSQL_DATETIME:
             case MYSQL_TIMESTAMP:

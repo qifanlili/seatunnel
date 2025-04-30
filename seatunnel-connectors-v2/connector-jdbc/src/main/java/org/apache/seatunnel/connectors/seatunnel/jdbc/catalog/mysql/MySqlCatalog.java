@@ -73,10 +73,11 @@ public class MySqlCatalog extends AbstractJdbcCatalog {
             String username,
             String pwd,
             String dateFormat,
+            String timeFormat,
             JdbcUrlUtil.UrlInfo urlInfo) {
         super(catalogName, username, pwd, urlInfo, null);
         this.version = resolveVersion();
-        this.typeConverter = new MySqlTypeConverter(version, dateFormat);
+        this.typeConverter = new MySqlTypeConverter(version, dateFormat, timeFormat);
     }
 
     @Override
