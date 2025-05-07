@@ -26,6 +26,9 @@ import org.apache.seatunnel.api.table.type.SeaTunnelRowType;
 import org.apache.seatunnel.api.table.type.SqlType;
 import org.apache.seatunnel.common.exception.CommonError;
 import org.apache.seatunnel.common.exception.CommonErrorCodeDeprecated;
+import org.apache.seatunnel.common.utils.DateTimeUtils;
+import org.apache.seatunnel.common.utils.DateUtils;
+import org.apache.seatunnel.common.utils.TimeUtils;
 import org.apache.seatunnel.connectors.seatunnel.file.config.HadoopConf;
 import org.apache.seatunnel.connectors.seatunnel.file.exception.FileConnectorException;
 import org.apache.seatunnel.connectors.seatunnel.file.sink.config.FileSinkConfig;
@@ -60,6 +63,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.temporal.JulianFields;
 import java.util.ArrayList;
@@ -79,7 +83,31 @@ public class ParquetWriteStrategy extends AbstractWriteStrategy {
     private AvroSchemaConverter schemaConverter;
     private Schema schema;
     private Set<String> writePathsAsInt96;
+    private Set<String> timeFieldsToConvert;
     public static final int[] PRECISION_TO_BYTE_COUNT = new int[38];
+
+    private enum TimeFieldType {
+        DATE(SqlType.DATE, DateUtils.Formatter.YYYY_MM_DD),
+        TIME(SqlType.TIME, TimeUtils.Formatter.HH_MM_SS),
+        TIMESTAMP(SqlType.TIMESTAMP, DateTimeUtils.Formatter.YYYY_MM_DD_HH_MM_SS);
+
+        private final SqlType sqlType;
+        private final Object defaultFormatter;
+
+        TimeFieldType(SqlType sqlType, Object defaultFormatter) {
+            this.sqlType = sqlType;
+            this.defaultFormatter = defaultFormatter;
+        }
+
+        public static TimeFieldType fromSqlType(SqlType sqlType) {
+            for (TimeFieldType type : values()) {
+                if (type.sqlType == sqlType) {
+                    return type;
+                }
+            }
+            return null;
+        }
+    }
 
     static {
         for (int prec = 1; prec <= 38; prec++) {
@@ -99,6 +127,22 @@ public class ParquetWriteStrategy extends AbstractWriteStrategy {
         super.init(conf, jobId, uuidPrefix, subTaskIndex);
         Configuration configuration = getConfiguration(hadoopConf);
         writePathsAsInt96 = new HashSet<>(fileSinkConfig.getParquetAvroWriteFixedAsInt96());
+        timeFieldsToConvert = new HashSet<>();
+
+        // 检查是否有时间格式配置
+        if (fileSinkConfig.getDatetimeFormat() != null ||
+                fileSinkConfig.getDateFormat() != null ||
+                fileSinkConfig.getTimeFormat() != null) {
+
+            for (int i = 0; i < seaTunnelRowType.getTotalFields(); i++) {
+                SqlType sqlType = seaTunnelRowType.getFieldType(i).getSqlType();
+                TimeFieldType timeFieldType = TimeFieldType.fromSqlType(sqlType);
+                if (timeFieldType != null) {
+                    timeFieldsToConvert.add(seaTunnelRowType.getFieldName(i));
+                }
+            }
+        }
+
         if (fileSinkConfig.getParquetWriteTimestampAsInt96()) {
             List<String> timestampFields = new ArrayList<>();
             for (int i = 0; i < seaTunnelRowType.getTotalFields(); i++) {
@@ -203,11 +247,43 @@ public class ParquetWriteStrategy extends AbstractWriteStrategy {
         return writer;
     }
 
+    private Object convertTimeField(String name, Object data, SqlType sqlType) {
+        if (!timeFieldsToConvert.contains(name)) {
+            return data;
+        }
+
+        TimeFieldType timeFieldType = TimeFieldType.fromSqlType(sqlType);
+        if (timeFieldType == null) {
+            return data;
+        }
+
+        switch (timeFieldType) {
+            case DATE:
+                LocalDate localDate = (LocalDate) data;
+                return DateUtils.toString(localDate, fileSinkConfig.getDateFormat());
+            case TIME:
+                LocalTime localTime = (LocalTime) data;
+                return TimeUtils.toString(localTime, fileSinkConfig.getTimeFormat());
+            case TIMESTAMP:
+                LocalDateTime localDateTime = (LocalDateTime) data;
+                return DateTimeUtils.toString(localDateTime, fileSinkConfig.getDatetimeFormat());
+            default:
+                return data;
+        }
+    }
+
     private Object resolveObject(String name, Object data, SeaTunnelDataType<?> seaTunnelDataType) {
         if (data == null) {
             return null;
         }
-        switch (seaTunnelDataType.getSqlType()) {
+        SqlType sqlType = seaTunnelDataType.getSqlType();
+
+        // 处理时间类型字段
+        if (timeFieldsToConvert.contains(name)) {
+            return convertTimeField(name, data, sqlType);
+        }
+
+        switch (sqlType) {
             case ARRAY:
                 SeaTunnelDataType<?> elementType =
                         ((ArrayType<?, ?>) seaTunnelDataType).getElementType();
@@ -229,6 +305,7 @@ public class ParquetWriteStrategy extends AbstractWriteStrategy {
             case NULL:
             case DECIMAL:
             case DATE:
+            case TIME:
                 return data;
             case TIMESTAMP:
                 if (writePathsAsInt96.contains(name)) {
@@ -248,7 +325,7 @@ public class ParquetWriteStrategy extends AbstractWriteStrategy {
                                     + TimeUnit.MINUTES.toNanos(calendar.get(Calendar.MINUTE))
                                     + TimeUnit.SECONDS.toNanos(calendar.get(Calendar.SECOND))
                                     + TimeUnit.MILLISECONDS.toNanos(
-                                            calendar.get(Calendar.MILLISECOND));
+                                    calendar.get(Calendar.MILLISECOND));
                     NanoTime nanoTime = new NanoTime(julianDays, timeOfDayNanos);
                     return new GenericData.Fixed(
                             schema.getField(name).schema(), nanoTime.toBinary().getBytes());
@@ -293,7 +370,17 @@ public class ParquetWriteStrategy extends AbstractWriteStrategy {
 
     public Type seaTunnelDataType2ParquetDataType(
             String fieldName, SeaTunnelDataType<?> seaTunnelDataType) {
-        switch (seaTunnelDataType.getSqlType()) {
+        SqlType sqlType = seaTunnelDataType.getSqlType();
+
+        // 处理时间类型字段
+        if (timeFieldsToConvert.contains(fieldName)) {
+            return Types.primitive(
+                            PrimitiveType.PrimitiveTypeName.BINARY, Type.Repetition.OPTIONAL)
+                    .as(OriginalType.UTF8)
+                    .named(fieldName);
+        }
+
+        switch (sqlType) {
             case ARRAY:
                 SeaTunnelDataType<?> elementType =
                         ((ArrayType<?, ?>) seaTunnelDataType).getElementType();
